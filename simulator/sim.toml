@@ -5,7 +5,7 @@
 # Flagsmith-database warehouse, or your ingestion service's base URL otherwise.
 api_url = "http://localhost:8100/api/v1/"
 events_url = "http://localhost:8100/api/"
-environment_key = "VaJJSuGeEXjZetVz7xBhT8"
+environment_key = "GigkJfVkFA5QgdKBjLzqyT"
 feature = "checkout_button"
 conversion_event = "purchase"
 
@@ -21,8 +21,8 @@ treatment = 0.055
 # Applied to non-control variants only, by the identity's `device` trait, so the
 # treatment can win overall while losing badly on one platform. Control is the
 # baseline everywhere, which is what makes the segment story visible.
-desktop = 1.30
-android = 0.62
+desktop = 1.50
+android = 0.40
 ios = 1.00
 
 [traits]

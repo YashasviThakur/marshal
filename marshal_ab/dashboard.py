@@ -10,7 +10,7 @@ from .cli import configured_split, settings, ts
 from .decide import confidence_sequence, guardrail_breaches, win_probabilities
 from .flagsmith import Admin
 from .measure import FLAGSMITH_DATABASE_TABLE, Metric, read_stats
-from .stats import CONTROL
+from .stats import CONTROL, VariantStats, compare_to_control
 
 
 def snapshot(args, trait):
@@ -39,19 +39,25 @@ def snapshot(args, trait):
 
     def row(variant, a, control, alpha=0.05):
         cs = confidence_sequence(control, a, alpha) if variant != CONTROL and control else None
+        naive = compare_to_control(control, a) if variant != CONTROL and control else None
         return {"variant": variant, "n": a.n, "mean": a.mean, "lift": cs and cs.lift, "low": cs and cs.low,
-                "high": cs and cs.high, "verdict": cs.state if cs else None}
+                "high": cs and cs.high, "verdict": cs.state if cs else None,
+                "naive_low": naive and naive.ci_low, "naive_high": naive and naive.ci_high}
 
+    total = sum(a.n for a in arms.values())
+    # Conversions actually earned versus a fixed even split at the rates measured so far (an estimate).
+    extra = (sum(a.sum for a in arms.values()) - total * sum(a.mean for a in arms.values()) / len(arms)) if arms else 0
     log = Path(".marshal/decisions.jsonl")
     history = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
     return {"experiment": exp["name"], "status": exp["status"], "metric": steer.event, "served": served,
             "arms": [{**row(v, a, arms.get(CONTROL)), "chance_best": wins.get(v)}
                      for v, a in sorted(arms.items(), key=lambda x: (x[0] != CONTROL, x[0]))],
             "guardrails": [{"metric": g.event, "breaches": guardrail_breaches([g], stats)} for g in metrics[1:]],
-            "trait": trait,
+            "extra_conversions": extra, "identities": total, "trait": trait,
             "segments": [{"segment": seg or "(none)", **row(v, a, g.get(CONTROL), 0.05 / len(seg_stats))}
                          for seg, g in sorted(seg_stats.items()) for v, a in sorted(g.items()) if v != CONTROL],
-            "history": [{"at": r["at"], "served": r["current"], "decision": r["decision"]} for r in history[-60:]]}
+            "history": [{"at": r["at"], "served": r["current"], "decision": r["decision"], "verdicts": r.get("verdicts"),
+                         "identities": r.get("identities")} for r in history[-60:]]}
 
 
 def serve(args):

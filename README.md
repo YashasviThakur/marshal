@@ -64,8 +64,7 @@ same Postgres.
 
 ## Honest limits
 
-* **Flagsmith's sample-ratio check will fire during a bandit run.** Cumulative counts no longer match the split being
-  served. That is expected, not a bug. `status` compares against the split currently served.
+* **Flagsmith's sample-ratio check will fire during a bandit run.** Its counts are cumulative, so they no longer match the split being served. Marshal's `status` checks only identities first seen since the last reallocation against the split now served: after a 50/50 -> 19/81 move, 800 new users gave p = 0.43 (ok), where the cumulative count gives p < 0.001. Flagsmith's own page will still show its alarm.
 * Flagsmith's own sample-ratio check is empty for experiments (it reads the environment default split, which has
   0% treatment): a bug in its `services.py`, worth an upstream issue.
 * One primary metric steers traffic (the experiment's first); the rest only act as guardrails that halt it.

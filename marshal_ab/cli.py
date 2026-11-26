@@ -18,7 +18,7 @@ import time
 
 from .decide import allocate, confidence_sequence, guardrail_breaches, percentages, win_probabilities
 from .flagsmith import Admin
-from .measure import FLAGSMITH_DATABASE_TABLE, Metric, read_stats, results_sql
+from .measure import FLAGSMITH_DATABASE_TABLE, Metric, counts_since, read_stats, results_sql
 from .stats import CONTROL, MIN_IDENTITIES_PER_VARIANT, SRM_MIN_TOTAL_IDENTITIES, infer, srm_p_value
 
 FIELDS = ("lift", "ci_low", "ci_high", "chance_to_win")
@@ -93,9 +93,20 @@ def status(args):
             print(line)
 
     split = configured_split(exp)
-    total = sum(counts.values())
-    srm = srm_p_value([counts.get(v, 0) for v in split], list(split.values())) if total >= SRM_MIN_TOTAL_IDENTITIES else None
-    print(f"\nsample ratio vs the split being served ({', '.join(f'{k} {v:.0%}' for k, v in split.items())}): "
+    since, when = start, "the experiment started"
+    log = Path(".marshal/decisions.jsonl")
+    moves = [json.loads(l) for l in log.read_text().splitlines() if "reallocated" in l] if log.exists() else []
+    moves = [m for m in moves if m["decision"] == "reallocated"]
+    if moves:  # only identities first seen under the split now being served say anything about that split
+        last = moves[-1]
+        since = datetime.fromisoformat(last.get("applied_at") or last["at"]).astimezone(start.tzinfo)
+        when = f"the last reallocation ({since:%H:%M:%S} UTC)"
+    with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
+        fresh = counts_since(conn, env_key, exp["feature"]["name"], since, datetime.now(start.tzinfo), table)
+    total = sum(fresh.values())
+    srm = srm_p_value([fresh.get(v, 0) for v in split], list(split.values())) if total >= SRM_MIN_TOTAL_IDENTITIES else None
+    print(f"\nsample ratio vs the split being served ({', '.join(f'{k} {v:.0%}' for k, v in split.items())}), "
+          f"identities first seen since {when}: "
           + ("too little traffic" if srm is None else f"p = {srm:.3f}" + ("  MISMATCH" if srm < 0.001 else "  ok")))
 
     if not theirs.get("payload"):
@@ -206,6 +217,7 @@ def run(args):
                         {"multivariate_feature_option": options[v], "percentage_allocation": p}
                         for v, p in percentages(proposed).items()]
                     api.patch(f"/environments/{env_key}/experiments/{exp_id}/rollout/", body)
+                    record["applied_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
                     record["decision"] = "reallocated"
         print(json.dumps(record))
         Path(".marshal").mkdir(exist_ok=True)

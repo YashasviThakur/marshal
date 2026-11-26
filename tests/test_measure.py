@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from marshal_ab.measure import Metric, read_stats  # noqa: E402
+from marshal_ab.measure import Metric, counts_since, read_stats  # noqa: E402
 from marshal_ab.stats import VariantStats, compare_to_control, infer, srm_p_value  # noqa: E402
 
 
@@ -103,6 +103,12 @@ class Sql(unittest.TestCase):
                                    table="ev", attribution="first", trait="device")
         self.assertEqual(counts, {"android": {"control": 2}, "desktop": {"control": 1, "treatment": 2}})  # a, e | c | b, d
         self.assertEqual(stats[1]["android"]["control"].sum, 2)
+
+    def test_counts_since_skips_identities_seen_before(self):
+        end = T0 + timedelta(hours=1)
+        self.assertEqual(counts_since(self.conn, "k", "f", T0, end, "ev"), {"control": 3, "treatment": 2})  # a c e | b d
+        # at +10 min only e's move (first seen +1) is excluded; nobody was first seen later
+        self.assertEqual(counts_since(self.conn, "k", "f", T0 + timedelta(minutes=10), end, "ev"), {})
 
     def test_count_aggregation(self):
         _, stats = self.stats("quarantine", "count")

@@ -112,3 +112,19 @@ def read_stats(conn, env_key: str, feature: str, start: datetime, end: datetime,
     stats = {m.id: {r[0]: VariantStats(int(r[2]), float(r[3 + 2 * i]), float(r[4 + 2 * i])) for r in rows}
              for i, m in enumerate(metrics)}
     return counts, stats
+
+
+def counts_since(conn, env_key: str, feature: str, since: datetime, end: datetime,
+                 table: str = FLAGSMITH_DATABASE_TABLE) -> dict[str, int]:
+    """Identities whose FIRST exposure ever came at or after `since`, by the variant they first saw.
+    This is the population a sample-ratio check against the split served since `since` should use: identities
+    exposed before a reallocation keep the bucket they were given under the old split."""
+    with conn.cursor() as cur:
+        cur.execute(f"""SELECT v, count(*) FROM (
+            SELECT (array_agg(coalesce(value, '') ORDER BY timestamp, id))[1] AS v, min(timestamp) AS t
+            FROM {table}
+            WHERE environment_key = %(env)s AND event = %(event)s AND feature_name = %(feature)s AND timestamp < %(end)s
+            GROUP BY identifier) AS first_seen
+            WHERE t >= %(since)s GROUP BY v""",
+                    {"env": env_key, "event": EXPOSURE, "feature": feature, "since": since, "end": end})
+        return {r[0]: int(r[1]) for r in cur.fetchall()}

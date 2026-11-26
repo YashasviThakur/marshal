@@ -68,12 +68,16 @@ class Sql(unittest.TestCase):
         ]
         with cls.conn.cursor() as cur:
             cur.execute("CREATE TEMP TABLE ev (id bigint generated always as identity, environment_key text, event text,"
-                        " feature_name text, timestamp timestamptz, identifier text, value text)")
+                        " feature_name text, timestamp timestamptz, identifier text, value text, traits text)")
             cur.executemany("INSERT INTO ev (environment_key, event, feature_name, timestamp, identifier, value)"
                             " VALUES ('k', %s, %s, %s, %s, %s)",
                             [(e, f, T0 + timedelta(minutes=m), i, v) for i, e, f, m, v in rows])
             cur.execute("INSERT INTO ev (environment_key, event, feature_name, timestamp, identifier, value)"
                         " VALUES ('other-env', '$flag_exposure', 'f', %s, 'h', 'control')", (T0,))
+            # traits ride on exposure events; e's first exposure says android, its later one says desktop
+            cur.execute("UPDATE ev SET traits = '{\"device\": \"desktop\"}' WHERE event = '$flag_exposure'")
+            cur.execute("UPDATE ev SET traits = '{\"device\": \"android\"}' WHERE identifier IN ('a', 'e')"
+                        " AND event = '$flag_exposure' AND timestamp < %s", (T0 + timedelta(minutes=10),))
 
     @classmethod
     def tearDownClass(cls):
@@ -93,6 +97,12 @@ class Sql(unittest.TestCase):
         counts, stats = self.stats("first")
         self.assertEqual(counts, {"control": 3, "treatment": 2})  # e counts for control, where it started
         self.assertEqual(stats[1]["control"].sum, 2)  # a and e
+
+    def test_segments_use_the_trait_at_first_exposure(self):
+        counts, stats = read_stats(self.conn, "k", "f", T0, T0 + timedelta(hours=1), [Metric(1, "buy", "occurrence")],
+                                   table="ev", attribution="first", trait="device")
+        self.assertEqual(counts, {"android": {"control": 2}, "desktop": {"control": 1, "treatment": 2}})  # a, e | c | b, d
+        self.assertEqual(stats[1]["android"]["control"].sum, 2)
 
     def test_count_aggregation(self):
         _, stats = self.stats("quarantine", "count")

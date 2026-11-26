@@ -131,6 +131,33 @@ def compare(theirs, q_stats, metrics, names, srm_flagsmith):
               " not the experiment's; Marshal checks against the split actually served")
 
 
+def segments(args):
+    """The overall result taken apart by a trait. Each segment is judged with the confidence sequence at alpha / k
+    (Bonferroni over the k segments), so slicing does not turn noise into a finding."""
+    import psycopg
+
+    s, key = settings(args.env)
+    api = Admin(s["FLAGSMITH_API_URL"], key)
+    env_key, exp_id = s["EXPERIMENT_ENV_KEY"], s["EXPERIMENT_ID"]
+    exp = api.experiment(env_key, exp_id)
+    m = api.metric(env_key, exp["metrics"][0]["metric"])
+    metric = Metric(m["id"], m["definition"]["event"], m["aggregation"], m["direction"] == "down")
+    start = ts(exp["started_at"])
+    with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
+        _, by_segment = read_stats(conn, env_key, exp["feature"]["name"], start, datetime.now(start.tzinfo),
+                                   [metric], s.get("MARSHAL_EVENTS_TABLE", FLAGSMITH_DATABASE_TABLE), "first", args.trait)
+    groups = {seg: v for seg, v in by_segment[metric.id].items() if CONTROL in v and v[CONTROL].n >= 2}
+    alpha = 0.05 / max(1, len(groups))
+    print(f"{exp['name']}: metric {metric.event}, split by trait {args.trait!r}, "
+          f"{len(groups)} segments, each judged at alpha = {alpha:.4f}")
+    print(f"  {'segment':<12} {'variant':<10} {'n':>6} {'mean':>8} {'lift':>8} {'always-valid interval':>24}  verdict")
+    for seg, arms in sorted(groups.items()):
+        for variant in sorted(v for v in arms if v != CONTROL):
+            v = confidence_sequence(arms[CONTROL], arms[variant], alpha)
+            print(f"  {seg or '(none)':<12} {variant:<10} {arms[variant].n:>6} {arms[variant].mean:>8.4f}"
+                  + (f" {v.lift:>+8.1%} {f'[{v.low:+.1%}, {v.high:+.1%}]':>24}  {v.state}" if v else "   not enough data"))
+
+
 def run(args):
     """One measure -> decide -> act cycle (looped with --every). Observe mode only reports what it would do."""
     import psycopg
@@ -189,6 +216,9 @@ def main():
     st.add_argument("--env", default="sandbox/.env")
     st.add_argument("--attribution", choices=["first", "quarantine"], default="first")
     st.add_argument("--sql", action="store_true", help="print the query and stop")
+    sg = sub.add_parser("segments", help="the result split by a trait, with a multiple-comparison correction")
+    sg.add_argument("trait")
+    sg.add_argument("--env", default="sandbox/.env")
     rn = sub.add_parser("run", help="measure, decide and (in act mode) move traffic toward the better variant")
     rn.add_argument("--env", default="sandbox/.env")
     rn.add_argument("--mode", choices=["observe", "act"], default="observe")
@@ -198,7 +228,7 @@ def main():
     rn.add_argument("--max-step", type=float, default=0.10, help="largest share change per cycle")
     rn.add_argument("--seed", type=int)
     args = ap.parse_args()
-    {"status": status, "run": run}[args.cmd](args)
+    {"status": status, "run": run, "segments": segments}[args.cmd](args)
 
 
 if __name__ == "__main__":

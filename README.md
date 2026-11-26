@@ -19,6 +19,7 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
 | **measure** | Its own SQL on the warehouse events table (`--sql` prints it), so it is not bound by the 5-minute results refresh. Attribution is by each identity's *first* exposure, because reallocation puts identities on two variants and Flagsmith quarantines those. |
 | **decide** | An always-valid confidence sequence on the relative lift (mixture sequential probability ratio test). Look every minute and the error rate is still 5%. |
 | **act** | Thompson sampling: each variant gets the probability that it is the best. Guard rails: every variant keeps at least 10%, 20% of traffic stays evenly split as a holdback, and no share moves more than 10 points per cycle. |
+| **segments** | `python -m marshal_ab segments device` takes the result apart by any trait the SDK sent. Each segment is judged with the confidence sequence at alpha / k, so slicing does not manufacture winners. |
 | **prove** | A/A runs with identical variants. Marshal and Flagsmith's own scorecard are checked against each other to the decimal. |
 
 `observe` is the default mode: it prints and logs what it would do (`.marshal/decisions.jsonl`) and moves nothing.
@@ -30,6 +31,16 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
   interval, chance to win) with a largest difference of **0.0**, using Flagsmith's own attribution rule.
 * A/A, 40 looks per run, 400 runs (`tests/test_decide.py`): the confidence sequence calls **3.0%** of runs a winner;
   a 95% fixed-sample interval checked at every look calls **33%**.
+* Convergence (`sandbox/converge.sh`: six rounds of simulated traffic, Marshal reallocating after each, one loop,
+  fresh users each round, 21,000 identities in all): the share served to the treatment went 50 -> 60 -> 70 -> 80 -> 81%
+  and stopped there, because the floor and the holdback cap it (control keeps 0.2/2 + 0.8 x 10% = 18%). Chance the
+  treatment is best rose from 88% to 99%; the measured lift settled near +16%.
+* The price of a bandit is honest in the output: after those rounds the confidence sequence for the lift was still
+  [-6.4%, +38.6%], undecided. Sending 81% of users to the better arm is what made the interval slow to close.
+  Use `observe` and a fixed split when you need a verdict; use `act` when serving users well matters more.
+* Segments, same data (`marshal segments device`, Bonferroni-corrected): android -21%, desktop +38%, ios +36%. The
+  simulator plants a treatment that loses on android and wins elsewhere; Marshal sees the sign flip that the
+  overall number hides. None is called yet, which is correct at this sample size.
 * Day-0 check (`sandbox/day0_check.py`): on self-hosted 2.295.2 the variant weights of a *running* experiment can be
   changed with `PATCH rollout` (HTTP 200), and bucketing is monotone: no identity moves from treatment back to control.
 

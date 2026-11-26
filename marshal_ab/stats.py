@@ -42,13 +42,21 @@ class Inference:
     chance_to_win: float
 
 
-def compare_to_control(control: VariantStats, treatment: VariantStats) -> Inference | None:
+def lift_se(control: VariantStats, treatment: VariantStats) -> tuple[float, float] | None:
+    """Relative lift and its delta-method standard error, or None when it is undefined."""
     if control.n < 2 or treatment.n < 2 or control.mean <= 0:
         return None
     lift = (treatment.mean - control.mean) / control.mean
     variance = treatment.variance / (treatment.n * control.mean**2) + treatment.mean**2 * control.variance / (
         control.n * control.mean**4)
-    se = math.sqrt(variance)
+    return lift, math.sqrt(variance)
+
+
+def compare_to_control(control: VariantStats, treatment: VariantStats) -> Inference | None:
+    r = lift_se(control, treatment)
+    if r is None:
+        return None
+    lift, se = r
     if se == 0:
         return Inference(lift, lift, lift, 0.5 if lift == 0 else float(lift > 0))
     return Inference(lift, lift - _Z_95 * se, lift + _Z_95 * se, _STANDARD_NORMAL.cdf(lift / se))

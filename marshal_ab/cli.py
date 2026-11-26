@@ -12,9 +12,14 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import json
+import random
+import time
+
+from .decide import allocate, confidence_sequence, percentages, win_probabilities
 from .flagsmith import Admin
 from .measure import FLAGSMITH_DATABASE_TABLE, Metric, read_stats, results_sql
-from .stats import CONTROL, SRM_MIN_TOTAL_IDENTITIES, infer, srm_p_value
+from .stats import CONTROL, MIN_IDENTITIES_PER_VARIANT, SRM_MIN_TOTAL_IDENTITIES, infer, srm_p_value
 
 FIELDS = ("lift", "ci_low", "ci_high", "chance_to_win")
 
@@ -126,6 +131,57 @@ def compare(theirs, q_stats, metrics, names, srm_flagsmith):
               " not the experiment's; Marshal checks against the split actually served")
 
 
+def run(args):
+    """One measure -> decide -> act cycle (looped with --every). Observe mode only reports what it would do."""
+    import psycopg
+
+    s, key = settings(args.env)
+    api = Admin(s["FLAGSMITH_API_URL"], key)
+    env_key, exp_id = s["EXPERIMENT_ENV_KEY"], s["EXPERIMENT_ID"]
+    table = s.get("MARSHAL_EVENTS_TABLE", FLAGSMITH_DATABASE_TABLE)
+    while True:
+        exp = api.experiment(env_key, exp_id)
+        if exp["status"] != "running":
+            return print(f"experiment is {exp['status']}, nothing to do")
+        m = api.metric(env_key, exp["metrics"][0]["metric"])  # the first metric steers the traffic
+        metric = Metric(m["id"], m["definition"]["event"], m["aggregation"], m["direction"] == "down")
+        start = ts(exp["started_at"])
+        with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
+            counts, stats = read_stats(conn, env_key, exp["feature"]["name"], start,
+                                       datetime.now(start.tzinfo), [metric], table, "first")
+        arms = stats[metric.id]
+        current = configured_split(exp)
+        enough = all(a.n >= MIN_IDENTITIES_PER_VARIANT for a in arms.values()) and set(arms) == set(current)
+        record = {"at": datetime.now().isoformat(timespec="seconds"), "mode": args.mode, "current": current,
+                  "identities": counts}
+        if not enough:
+            record["decision"] = "collecting data"
+        else:
+            wins = win_probabilities(arms, occurrence=metric.aggregation == "occurrence",
+                                     lower_is_better=metric.lower_is_better, rng=random.Random(args.seed))
+            verdicts = {v: confidence_sequence(arms[CONTROL], arms[v]) for v in arms if v != CONTROL}
+            record.update(chance_best=wins, verdicts={v: (x.state, round(x.lift, 4), round(x.low, 4), round(x.high, 4))
+                                                      for v, x in verdicts.items() if x})
+            proposed = allocate(wins, current, floor=args.floor, holdback=args.holdback, max_step=args.max_step)
+            record["proposed"] = proposed
+            record["decision"] = "reallocate" if percentages(proposed) != percentages(current) else "hold"
+            if record["decision"] == "reallocate" and args.mode == "act":
+                options = {o["key"]: o["id"] for o in exp["feature"]["multivariate_options"]}
+                body = {k: v for k, v in exp["experiment_rollout"].items() if k != "audience"}  # audience is locked once running
+                body["multivariate_feature_state_values"] = [
+                    {"multivariate_feature_option": options[v], "percentage_allocation": p}
+                    for v, p in percentages(proposed).items()]
+                api.patch(f"/environments/{env_key}/experiments/{exp_id}/rollout/", body)
+                record["decision"] = "reallocated"
+        print(json.dumps(record))
+        Path(".marshal").mkdir(exist_ok=True)
+        with open(".marshal/decisions.jsonl", "a") as f:
+            f.write(json.dumps(record) + chr(10))
+        if not args.every:
+            return
+        time.sleep(args.every * 60)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="marshal")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -133,8 +189,16 @@ def main():
     st.add_argument("--env", default="sandbox/.env")
     st.add_argument("--attribution", choices=["first", "quarantine"], default="first")
     st.add_argument("--sql", action="store_true", help="print the query and stop")
+    rn = sub.add_parser("run", help="measure, decide and (in act mode) move traffic toward the better variant")
+    rn.add_argument("--env", default="sandbox/.env")
+    rn.add_argument("--mode", choices=["observe", "act"], default="observe")
+    rn.add_argument("--every", type=float, default=0, help="minutes between cycles; 0 runs once")
+    rn.add_argument("--floor", type=float, default=0.10, help="smallest share any variant keeps")
+    rn.add_argument("--holdback", type=float, default=0.20, help="share of traffic kept evenly split")
+    rn.add_argument("--max-step", type=float, default=0.10, help="largest share change per cycle")
+    rn.add_argument("--seed", type=int)
     args = ap.parse_args()
-    {"status": status}[args.cmd](args)
+    {"status": status, "run": run}[args.cmd](args)
 
 
 if __name__ == "__main__":

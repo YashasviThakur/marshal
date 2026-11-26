@@ -70,11 +70,19 @@ def percentages(split: dict[str, float], control: str = "control") -> dict[str, 
     return {v: round(s * 100) for v, s in split.items() if v != control}
 
 
-GUARDRAIL_TAU = 1.0  # rare events swing by hundreds of percent; the steering metric's 0.2 prior would hide a 1% -> 4% jump
+def credibly_worse(control: VariantStats, treatment: VariantStats, lower_is_better: bool, alpha: float = 0.05) -> bool:
+    """Always-valid test on the plain difference of means (the prior is 0.25 control standard deviations). A relative
+    lift is useless for a rare event: with 18 errors in control its interval spans zero even at a 6x jump."""
+    v = control.variance / control.n + treatment.variance / treatment.n
+    t2 = (0.25 ** 2) * control.variance
+    if v == 0 or t2 == 0:
+        return False
+    radius = math.sqrt(v * (v + t2) / t2 * (2 * math.log(1 / alpha) + math.log((v + t2) / v)))
+    diff = treatment.mean - control.mean
+    return diff - radius > 0 if lower_is_better else diff + radius < 0
 
 
 def guardrail_breaches(guardrails, stats: dict, control: str = "control") -> list[str]:
     """Guardrail metrics (anything after the steering metric) on which a variant is credibly worse than control."""
     return [f"{g.event} on {v}" for g in guardrails for v in stats[g.id] if v != control
-            and (cs := confidence_sequence(stats[g.id][control], stats[g.id][v], tau=GUARDRAIL_TAU))
-            and cs.state == ("winner" if g.lower_is_better else "loser")]
+            and credibly_worse(stats[g.id][control], stats[g.id][v], g.lower_is_better)]

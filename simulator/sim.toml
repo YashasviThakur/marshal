@@ -1,0 +1,32 @@
+# Traffic simulator config. Everything here is ground truth that Marshal is NOT told.
+
+[flagsmith]
+# Self-hosted defaults. api_url must end in /api/v1/, events_url in /api/ for the
+# Flagsmith-database warehouse, or your ingestion service's base URL otherwise.
+api_url = "http://localhost:8100/api/v1/"
+events_url = "http://localhost:8100/api/"
+environment_key = "mXFFrhPQbBizhCRdYwyrUj"
+feature = "checkout_button"
+conversion_event = "purchase"
+
+# The variant keys as created in Flagsmith. "control" is reserved for the flag's own value.
+variants = ["control", "treatment"]
+
+[truth]
+# True per-identity conversion probability for each variant, before segment effects.
+control = 0.042
+treatment = 0.050
+
+[truth.device_multiplier]
+# Applied to non-control variants only, by the identity's `device` trait, so the
+# treatment can win overall while losing badly on one platform. Control is the
+# baseline everywhere, which is what makes the segment story visible.
+desktop = 1.30
+android = 0.62
+ios = 1.00
+
+[traits]
+# Sampling weights per trait. They need not sum to 1; they are normalised.
+device = { desktop = 0.50, android = 0.35, ios = 0.15 }
+plan = { free = 0.80, pro = 0.20 }
+country = { IN = 0.40, GB = 0.30, US = 0.30 }

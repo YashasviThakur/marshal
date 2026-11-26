@@ -1,0 +1,51 @@
+# Self-hosted Flagsmith with Experimentation on, storing events in its own Postgres
+# (the "Flagsmith database" warehouse), so no ClickHouse or Kafka is needed. Port 8100.
+name: marshal
+
+x-flagsmith-env: &flagsmith-env
+  DATABASE_URL: postgresql://postgres:password@flagsmith-db:5432/flagsmith
+  USE_POSTGRES_FOR_ANALYTICS: 'true'
+  ENVIRONMENT: production
+  DJANGO_ALLOWED_HOSTS: '*'
+  FLAGSMITH_DOMAIN: localhost:8100
+  DJANGO_SECRET_KEY: sandbox-only-secret
+  TASK_RUN_METHOD: TASK_PROCESSOR
+  EXPERIMENTATION_ENABLED: 'true'
+
+services:
+  flagsmith-db:
+    image: postgres:15.5-alpine
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: flagsmith
+    ports: ['5442:5432']  # Marshal reads the events table directly
+    volumes: [flagsmith-pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d flagsmith -U postgres']
+      interval: 2s
+      retries: 30
+
+  flagsmith-migrate:
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
+    command: [migrate]
+    environment: *flagsmith-env
+    depends_on:
+      flagsmith-db: {condition: service_healthy}
+
+  flagsmith:
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
+    command: [serve]
+    environment: *flagsmith-env
+    ports: ['8100:8000']
+    depends_on:
+      flagsmith-migrate: {condition: service_completed_successfully}
+
+  flagsmith-tasks:
+    image: docker.flagsmith.com/flagsmith/flagsmith:2.295.2
+    command: [run-task-processor]
+    environment: *flagsmith-env
+    depends_on:
+      flagsmith-migrate: {condition: service_completed_successfully}
+
+volumes:
+  flagsmith-pg:

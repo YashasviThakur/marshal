@@ -226,6 +226,10 @@ def main():
     sg = sub.add_parser("segments", help="the result split by a trait, with a multiple-comparison correction")
     sg.add_argument("trait")
     sg.add_argument("--env", default="sandbox/.env")
+    sv = sub.add_parser("serve", help="read-only dashboard: split, evidence, segments, guardrails, decision log")
+    sv.add_argument("--env", default="sandbox/.env")
+    sv.add_argument("--port", type=int, default=8765)
+    sv.add_argument("--trait", default="device", help="trait the segment table starts on")
     rn = sub.add_parser("run", help="measure, decide and (in act mode) move traffic toward the better variant")
     rn.add_argument("--env", default="sandbox/.env")
     rn.add_argument("--mode", choices=["observe", "act"], default="observe")
@@ -235,6 +239,9 @@ def main():
     rn.add_argument("--max-step", type=float, default=0.10, help="largest share change per cycle")
     rn.add_argument("--seed", type=int)
     args = ap.parse_args()
+    if args.cmd == "serve":
+        from .dashboard import serve
+        return serve(args)
     {"status": status, "run": run, "segments": segments}[args.cmd](args)
 
 

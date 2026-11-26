@@ -16,7 +16,7 @@ import json
 import random
 import time
 
-from .decide import allocate, confidence_sequence, percentages, win_probabilities
+from .decide import allocate, confidence_sequence, guardrail_breaches, percentages, win_probabilities
 from .flagsmith import Admin
 from .measure import FLAGSMITH_DATABASE_TABLE, Metric, read_stats, results_sql
 from .stats import CONTROL, MIN_IDENTITIES_PER_VARIANT, SRM_MIN_TOTAL_IDENTITIES, infer, srm_p_value
@@ -170,12 +170,15 @@ def run(args):
         exp = api.experiment(env_key, exp_id)
         if exp["status"] != "running":
             return print(f"experiment is {exp['status']}, nothing to do")
-        m = api.metric(env_key, exp["metrics"][0]["metric"])  # the first metric steers the traffic
-        metric = Metric(m["id"], m["definition"]["event"], m["aggregation"], m["direction"] == "down")
+        metrics = []
+        for em in exp["metrics"]:
+            m = api.metric(env_key, em["metric"])
+            metrics.append(Metric(m["id"], m["definition"]["event"], m["aggregation"], m["direction"] == "down"))
+        metric = metrics[0]  # the first metric steers the traffic; the others are guardrails
         start = ts(exp["started_at"])
         with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
             counts, stats = read_stats(conn, env_key, exp["feature"]["name"], start,
-                                       datetime.now(start.tzinfo), [metric], table, "first")
+                                       datetime.now(start.tzinfo), metrics, table, "first")
         arms = stats[metric.id]
         current = configured_split(exp)
         enough = all(a.n >= MIN_IDENTITIES_PER_VARIANT for a in arms.values()) and set(arms) == set(current)
@@ -189,17 +192,21 @@ def run(args):
             verdicts = {v: confidence_sequence(arms[CONTROL], arms[v]) for v in arms if v != CONTROL}
             record.update(chance_best=wins, verdicts={v: (x.state, round(x.lift, 4), round(x.low, 4), round(x.high, 4))
                                                       for v, x in verdicts.items() if x})
-            proposed = allocate(wins, current, floor=args.floor, holdback=args.holdback, max_step=args.max_step)
-            record["proposed"] = proposed
-            record["decision"] = "reallocate" if percentages(proposed) != percentages(current) else "hold"
-            if record["decision"] == "reallocate" and args.mode == "act":
-                options = {o["key"]: o["id"] for o in exp["feature"]["multivariate_options"]}
-                body = {k: v for k, v in exp["experiment_rollout"].items() if k != "audience"}  # audience is locked once running
-                body["multivariate_feature_state_values"] = [
-                    {"multivariate_feature_option": options[v], "percentage_allocation": p}
-                    for v, p in percentages(proposed).items()]
-                api.patch(f"/environments/{env_key}/experiments/{exp_id}/rollout/", body)
-                record["decision"] = "reallocated"
+            breaches = guardrail_breaches(metrics[1:], stats)
+            if breaches:  # a guardrail metric is credibly worse for a variant: stop moving traffic toward it
+                record["decision"] = "hold: guardrail breached by " + ", ".join(breaches)
+            else:
+                proposed = allocate(wins, current, floor=args.floor, holdback=args.holdback, max_step=args.max_step)
+                record["proposed"] = proposed
+                record["decision"] = "reallocate" if percentages(proposed) != percentages(current) else "hold"
+                if record["decision"] == "reallocate" and args.mode == "act":
+                    options = {o["key"]: o["id"] for o in exp["feature"]["multivariate_options"]}
+                    body = {k: v for k, v in exp["experiment_rollout"].items() if k != "audience"}  # audience is locked once running
+                    body["multivariate_feature_state_values"] = [
+                        {"multivariate_feature_option": options[v], "percentage_allocation": p}
+                        for v, p in percentages(proposed).items()]
+                    api.patch(f"/environments/{env_key}/experiments/{exp_id}/rollout/", body)
+                    record["decision"] = "reallocated"
         print(json.dumps(record))
         Path(".marshal").mkdir(exist_ok=True)
         with open(".marshal/decisions.jsonl", "a") as f:

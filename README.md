@@ -18,7 +18,7 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
 |---|---|
 | **measure** | Its own SQL on the warehouse events table (`--sql` prints it), so it is not bound by the 5-minute results refresh. Attribution is by each identity's *first* exposure, because reallocation puts identities on two variants and Flagsmith quarantines those. |
 | **decide** | An always-valid confidence sequence on the relative lift (mixture sequential probability ratio test). Look every minute and the error rate is still 5%. |
-| **act** | Thompson sampling: each variant gets the probability that it is the best. Guard rails: every variant keeps at least 10%, 20% of traffic stays evenly split as a holdback, and no share moves more than 10 points per cycle. |
+| **act** | Thompson sampling: each variant gets the probability that it is the best. Guard rails: the experiment's other metrics are guardrails, and if one is credibly worse for a variant (confidence sequence) Marshal stops moving traffic and says why; every variant keeps at least 10%, 20% of traffic stays evenly split as a holdback, and no share moves more than 10 points per cycle. |
 | **segments** | `python -m marshal_ab segments device` takes the result apart by any trait the SDK sent. Each segment is judged with the confidence sequence at alpha / k, so slicing does not manufacture winners. |
 | **prove** | A/A runs with identical variants. Marshal and Flagsmith's own scorecard are checked against each other to the decimal. |
 
@@ -66,8 +66,7 @@ same Postgres.
   served. That is expected, not a bug. `status` compares against the split currently served.
 * Flagsmith's own sample-ratio check is empty for experiments (it reads the environment default split, which has
   0% treatment): a bug in its `services.py`, worth an upstream issue.
-* One primary metric steers traffic (the experiment's first). A bandit optimises for it; check guardrail metrics in
-  Flagsmith's dashboard.
+* One primary metric steers traffic (the experiment's first); the rest only act as guardrails that halt it.
 * Variant shares are written as whole percentages.
 * Thompson sampling is a heuristic for exploiting a likely winner; for a clean estimate of the effect size keep the
   holdback and read the confidence sequence, not the allocation.

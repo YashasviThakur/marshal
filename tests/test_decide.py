@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from marshal_ab.decide import allocate, confidence_sequence, percentages, win_probabilities  # noqa: E402
+from marshal_ab.decide import allocate, confidence_sequence, guardrail_breaches, percentages, win_probabilities  # noqa: E402
+from marshal_ab.measure import Metric  # noqa: E402
 from marshal_ab.stats import VariantStats, compare_to_control  # noqa: E402
 
 
@@ -39,6 +40,13 @@ class Decide(unittest.TestCase):
     def test_real_effect_is_called(self):
         v = confidence_sequence(VariantStats(20000, 840, 840), VariantStats(20000, 1000, 1000))
         self.assertEqual(v.state, "winner")
+
+    def test_guardrail(self):
+        refunds_up = {"control": VariantStats(20000, 400, 400), "t": VariantStats(20000, 600, 600)}
+        refunds, signups = Metric(2, "refund", "occurrence", lower_is_better=True), Metric(3, "signup", "occurrence")
+        ok = {"control": VariantStats(20000, 800, 800), "t": VariantStats(20000, 800, 800)}
+        self.assertEqual(guardrail_breaches([refunds, signups], {2: refunds_up, 3: ok}), ["refund on t"])
+        self.assertEqual(guardrail_breaches([refunds, signups], {2: ok, 3: ok}), [])
 
     def test_win_probabilities(self):
         w = win_probabilities({"control": VariantStats(2000, 84, 84), "t": VariantStats(2000, 120, 120)},

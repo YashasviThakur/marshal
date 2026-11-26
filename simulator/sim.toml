@@ -5,7 +5,7 @@
 # Flagsmith-database warehouse, or your ingestion service's base URL otherwise.
 api_url = "http://localhost:8100/api/v1/"
 events_url = "http://localhost:8100/api/"
-environment_key = "mXFFrhPQbBizhCRdYwyrUj"
+environment_key = "VaJJSuGeEXjZetVz7xBhT8"
 feature = "checkout_button"
 conversion_event = "purchase"
 
@@ -14,8 +14,8 @@ variants = ["control", "treatment"]
 
 [truth]
 # True per-identity conversion probability for each variant, before segment effects.
-control = 0.042
-treatment = 0.050
+control = 0.040
+treatment = 0.055
 
 [truth.device_multiplier]
 # Applied to non-control variants only, by the identity's `device` trait, so the

@@ -1,5 +1,6 @@
 """Create the demo experiment on the sandbox: project, environment, multivariate flag, the "Flagsmith database"
-warehouse, a purchase metric and a running 50/50 experiment. Idempotent: reuses what exists.
+warehouse, a purchase metric and a running 50/50 experiment. Idempotent: reuses what exists, or with --reset deletes the
+demo project first.
 
 Writes the client environment key into simulator/sim.toml and EXPERIMENT_* ids into sandbox/.env.
 """
@@ -26,6 +27,8 @@ def items(path):
 def main():
     org = int(env["FLAGSMITH_ORGANISATION"])
     projects = {p["name"]: p for p in items("/projects/")}
+    if "--reset" in sys.argv and "marshal-demo" in projects:  # a free organisation holds one project: start clean
+        api.call("DELETE", f"/projects/{projects.pop('marshal-demo')['id']}/")
     project = projects.get("marshal-demo") or api.post("/projects/", {"name": "marshal-demo", "organisation": org})
     envs = {e["name"]: e for e in items(f"/environments/?project={project['id']}")}
     environment = envs.get("production") or api.post("/environments/", {"name": "production", "project": project["id"]})

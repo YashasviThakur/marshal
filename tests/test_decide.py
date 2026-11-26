@@ -48,6 +48,11 @@ class Decide(unittest.TestCase):
         self.assertEqual(guardrail_breaches([refunds, signups], {2: refunds_up, 3: ok}), ["refund on t"])
         self.assertEqual(guardrail_breaches([refunds, signups], {2: ok, 3: ok}), [])
 
+    def test_guardrail_catches_rare_event_spike(self):
+        errors = Metric(2, "checkout_error", "occurrence", lower_is_better=True)
+        spike = {"control": VariantStats(3000, 30, 30), "t": VariantStats(6000, 240, 240)}  # 1% -> 4%
+        self.assertEqual(guardrail_breaches([errors], {2: spike}), ["checkout_error on t"])
+
     def test_win_probabilities(self):
         w = win_probabilities({"control": VariantStats(2000, 84, 84), "t": VariantStats(2000, 120, 120)},
                               occurrence=True, rng=random.Random(1))

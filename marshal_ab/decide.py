@@ -70,8 +70,11 @@ def percentages(split: dict[str, float], control: str = "control") -> dict[str, 
     return {v: round(s * 100) for v, s in split.items() if v != control}
 
 
+GUARDRAIL_TAU = 1.0  # rare events swing by hundreds of percent; the steering metric's 0.2 prior would hide a 1% -> 4% jump
+
+
 def guardrail_breaches(guardrails, stats: dict, control: str = "control") -> list[str]:
     """Guardrail metrics (anything after the steering metric) on which a variant is credibly worse than control."""
     return [f"{g.event} on {v}" for g in guardrails for v in stats[g.id] if v != control
-            and (cs := confidence_sequence(stats[g.id][control], stats[g.id][v]))
+            and (cs := confidence_sequence(stats[g.id][control], stats[g.id][v], tau=GUARDRAIL_TAU))
             and cs.state == ("winner" if g.lower_is_better else "loser")]

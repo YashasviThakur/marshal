@@ -124,6 +124,7 @@ def run_sdk(cfg: dict, args: argparse.Namespace, ids: list[Identity], tally: Tal
     feature = fsc["feature"]
     event = cfg["flagsmith"]["conversion_event"]
     rng = random.Random(args.seed + 1)
+    guard = cfg["truth"].get("guardrail") if args.guardrail else None  # a second event only the treatment inflates
 
     for identity in ids:
         if args.mode == "flat":
@@ -152,6 +153,8 @@ def run_sdk(cfg: dict, args: argparse.Namespace, ids: list[Identity], tally: Tal
                 value=1,
                 traits=identity.traits,
             )
+        if guard and rng.random() < float(guard.get(identity.variant, guard[CONTROL])):
+            client.track_event(guard["event"], identifier=identity.identifier, value=1, traits=identity.traits)
         record(tally, identity)
 
     client.flush_events()
@@ -313,6 +316,7 @@ def main() -> None:
     parser.add_argument("--span-hours", type=int, default=0, help="raw only: spread timestamps over this window (max 240)")
     parser.add_argument("--split", type=float, default=50.0, help="raw only: percent of identities on a non-control variant")
     parser.add_argument("--srm-drop", type=float, default=0.3, help="srm mode: share of non-control exposures to drop")
+    parser.add_argument("--guardrail", action="store_true", help="sdk only: also emit the [truth.guardrail] event")
     parser.add_argument("--dry-run", action="store_true", help="generate and report, send nothing")
     args = parser.parse_args()
 

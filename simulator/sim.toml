@@ -5,7 +5,7 @@
 # Flagsmith-database warehouse, or your ingestion service's base URL otherwise.
 api_url = "http://localhost:8100/api/v1/"
 events_url = "http://localhost:8100/api/"
-environment_key = "GigkJfVkFA5QgdKBjLzqyT"
+environment_key = "2UzyFjBZX4VWR7JPuPutnW"
 feature = "checkout_button"
 conversion_event = "purchase"
 
@@ -24,6 +24,12 @@ treatment = 0.055
 desktop = 1.50
 android = 0.40
 ios = 1.00
+
+[truth.guardrail]
+# Used with --guardrail: a per-identity event the treatment inflates (a checkout error). Marshal must catch it.
+event = "checkout_error"
+control = 0.01
+treatment = 0.04
 
 [traits]
 # Sampling weights per trait. They need not sum to 1; they are normalised.

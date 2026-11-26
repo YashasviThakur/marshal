@@ -52,11 +52,18 @@ def main():
         "name": METRIC_EVENT, "aggregation": "occurrence", "direction": "up",
         "definition": {"version": 1, "event": METRIC_EVENT}})
 
+    metrics_in = [{"metric": str(metric["id"]), "expected_direction": "increase"}]
+    if "--guardrail" in sys.argv:  # a second metric: any metric after the first is a guardrail for Marshal
+        err = metrics.get("checkout_error") or api.post(f"/environments/{key}/experiment-metrics/", {
+            "name": "checkout_error", "aggregation": "occurrence", "direction": "down",
+            "definition": {"version": 1, "event": "checkout_error"}})
+        metrics_in.append({"metric": str(err["id"]), "expected_direction": "decrease"})
+
     running = [x for x in items(f"/environments/{key}/experiments/") if x["status"] == "running"]
     exp = running[0] if running else api.post(f"/environments/{key}/experiments/", {
         "feature": feature["id"], "name": "Checkout button copy",
         "hypothesis": "'Get it today' converts better than 'Buy now'",
-        "metrics": [{"metric": str(metric["id"]), "expected_direction": "increase"}],
+        "metrics": metrics_in,
         "experiment_rollout": {"enabled": True, "rollout_percentage": 100,
                                "feature_state_value": {"type": "string", "value": "control"},
                                "multivariate_feature_state_values": [

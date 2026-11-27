@@ -32,17 +32,19 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
   interval, chance to win) with a largest difference of **0.0**, using Flagsmith's own attribution rule.
 * A/A, 40 looks per run, 400 runs (`tests/test_decide.py`): the confidence sequence calls **3.0%** of runs a winner;
   a 95% fixed-sample interval checked at every look calls **33%**.
-* Convergence (`sandbox/converge.sh`: six rounds of simulated traffic, Marshal reallocating after each, one loop,
-  fresh users each round, 21,000 identities in all): the share served to the treatment went 50 -> 60 -> 70 -> 80 -> 81%
-  and stopped there, because the floor and the holdback cap it (control keeps 0.2/2 + 0.8 x 10% = 18%). Chance the
-  treatment is best rose from 88% to 99%; the measured lift settled near +16%.
-* The price of a bandit is honest in the output: after those rounds the confidence sequence for the lift was still
-  [-6.4%, +38.6%], undecided. Sending 81% of users to the better arm is what made the interval slow to close.
-  Use `observe` and a fixed split when you need a verdict; use `act` when serving users well matters more.
+* Demo run (`sh sandbox/demo.sh 8 2500`: eight rounds, 20,000 identities, Marshal reallocating after each): the
+  treatment's share went 50 -> 60 -> 70 -> 80 -> 82% and held, because the floor and the holdback cap it (control keeps
+  0.2/2 + 0.8 x 10% = 18%). Chance the treatment is best was 1.0 from round 2. The measured lift was **+51%**, and the
+  confidence sequence called it a winner: [+15%, +88%] (a fixed 95% interval gives [+28%, +74%]). About 94 more
+  conversions than a fixed 50/50 split would have earned at the rates measured (an estimate). The size of the lift
+  varies between runs (+30% at 12,000 identities, +51% at 20,000); read the interval, not the point estimate.
+* The price of a bandit shows at smaller samples: at 12,000 identities the same setup was still undecided,
+  [-7%, +66%]. Sending 82% of users to the better arm is what makes the interval slow to close. Use `observe` and a
+  fixed split when you need a verdict; use `act` when serving users well matters more.
+* Segments, same 20,000 identities (`marshal segments device`, Bonferroni-corrected): desktop +111%, called a winner
+  ([+12%, +210%]); android -34%, [-69%, +0.2%], undecided; ios +42%, undecided. The simulator plants a treatment that
+  loses on android and wins elsewhere; Marshal sees the sign flip that the overall number hides.
 * Guardrail demo (`sh sandbox/demo.sh 6 1500 guardrail`): the simulator's treatment wins on purchases but raises `checkout_error` from 1% to 4%. Marshal holds the split at 50/50 in every round, logging `hold: guardrail breached by checkout_error on treatment`, although the chance the treatment is best is 0.99 or higher.
-* Segments, same data (`marshal segments device`, Bonferroni-corrected): android -21%, desktop +38%, ios +36%. The
-  simulator plants a treatment that loses on android and wins elsewhere; Marshal sees the sign flip that the
-  overall number hides. None is called yet, which is correct at this sample size.
 * Day-0 check (`sandbox/day0_check.py`): on self-hosted 2.295.2 the variant weights of a *running* experiment can be
   changed with `PATCH rollout` (HTTP 200), and bucketing is monotone: no identity moves from treatment back to control.
 

@@ -15,7 +15,7 @@ tab) on the right.
 | 1:00 | Dashboard, rounds 2-5: bar moves 50 -> 80% | "Thompson sampling sends users to whichever variant is probably better. A floor keeps every variant alive and a holdback of 20% stays evenly split so a clean comparison always exists." |
 | 1:30 | Evidence table: fixed 95% vs always-valid | "Here is the catch with watching an A/B test. This fixed interval says treatment wins. If you look every day, it is wrong about one A/A test in three: I measured 33%. The always-valid interval is wrong 3% of the time however often you look." Show the unit test line. |
 | 2:00 | Segment panel, callout | "Treatment wins overall and loses on android. One number hid that. Marshal takes the result apart by any trait, correcting for the number of slices." |
-| 2:25 | Guardrails + decision log | "If a guardrail metric gets credibly worse for a variant, it stops moving traffic and says why. Every decision is logged." |
+| 2:25 | Guardrails + decision log (optional: run `sh sandbox/demo.sh 6 1500 guardrail` instead and show the log line `hold: guardrail breached by checkout_error on treatment`) | "The treatment wins on purchases but quadruples checkout errors. Marshal holds the split at 50/50 and says why, even at 99% chance of being best. Wrongly halting an A/A test happens 1% of the time however often you look." |
 | 2:45 | Flagsmith page shows its own sample-ratio alarm; terminal `marshal status` shows ok | "Flagsmith's alarm fires because it counts cumulatively. Marshal checks only users first seen since the last move: p = 0.43." |
 | 3:00 | README | "Self-hosted, no fork, standard library dashboard. github.com/YashasviThakur/marshal." |
 

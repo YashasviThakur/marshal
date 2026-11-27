@@ -18,7 +18,7 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
 |---|---|
 | **measure** | Its own SQL on the warehouse events table (`--sql` prints it), so it is not bound by the 5-minute results refresh. Attribution is by each identity's *first* exposure, because reallocation puts identities on two variants and Flagsmith quarantines those. |
 | **decide** | An always-valid confidence sequence on the relative lift (mixture sequential probability ratio test). Look every minute and the error rate is still 5%. |
-| **act** | Thompson sampling: each variant gets the probability that it is the best. Guard rails: the experiment's other metrics are guardrails, and if one is credibly worse for a variant (confidence sequence) Marshal stops moving traffic and says why; every variant keeps at least 10%, 20% of traffic stays evenly split as a holdback, and no share moves more than 10 points per cycle. |
+| **act** | Thompson sampling: each variant gets the probability that it is the best. Guard rails: the experiment's other metrics are guardrails, and if one is credibly worse for a variant (confidence sequence) Marshal stops moving traffic and says why (a test on the difference of means that stays valid at every look; in an A/A run it wrongly halted 1.0% of 400 runs); every variant keeps at least 10%, 20% of traffic stays evenly split as a holdback, and no share moves more than 10 points per cycle. |
 | **segments** | `python -m marshal_ab segments device` takes the result apart by any trait the SDK sent. Each segment is judged with the confidence sequence at alpha / k, so slicing does not manufacture winners. |
 | **dashboard** | `python -m marshal_ab serve` opens a read-only page on :8765: traffic share over time, the evidence for each variant, any trait taken apart, guardrails, and the decision log. Refreshes every 10 seconds, standard library only. |
 | **prove** | A/A runs with identical variants. Marshal and Flagsmith's own scorecard are checked against each other to the decimal. |
@@ -39,6 +39,7 @@ deferred, and its Release Pipelines have no metric-based triggers. Marshal suppl
 * The price of a bandit is honest in the output: after those rounds the confidence sequence for the lift was still
   [-6.4%, +38.6%], undecided. Sending 81% of users to the better arm is what made the interval slow to close.
   Use `observe` and a fixed split when you need a verdict; use `act` when serving users well matters more.
+* Guardrail demo (`sh sandbox/demo.sh 6 1500 guardrail`): the simulator's treatment wins on purchases but raises `checkout_error` from 1% to 4%. Marshal holds the split at 50/50 in every round, logging `hold: guardrail breached by checkout_error on treatment`, although the chance the treatment is best is 0.99 or higher.
 * Segments, same data (`marshal segments device`, Bonferroni-corrected): android -21%, desktop +38%, ios +36%. The
   simulator plants a treatment that loses on android and wins elsewhere; Marshal sees the sign flip that the
   overall number hides. None is called yet, which is correct at this sample size.

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from marshal_ab.decide import allocate, confidence_sequence, guardrail_breaches, percentages, win_probabilities  # noqa: E402
+from marshal_ab.decide import allocate, confidence_sequence, credibly_worse, guardrail_breaches, percentages, win_probabilities  # noqa: E402
 from marshal_ab.measure import Metric  # noqa: E402
 from marshal_ab.stats import VariantStats, compare_to_control  # noqa: E402
 
@@ -36,6 +36,20 @@ class Decide(unittest.TestCase):
         print(f"\nA/A, 40 peeks, 400 runs: confidence sequence {seq:.1%} false winners, fixed 95% interval {fixed:.1%}")
         self.assertLessEqual(seq, 0.05)
         self.assertGreater(fixed, 0.15)
+
+    def test_guardrail_false_halts_at_aa(self):
+        rng, halts = random.Random(11), 0
+        for _ in range(400):
+            c = t = n = 0
+            for _ in range(40):
+                n += 250
+                c += sum(rng.random() < 0.02 for _ in range(250))
+                t += sum(rng.random() < 0.02 for _ in range(250))
+                if credibly_worse(VariantStats(n, c, c), VariantStats(n, t, t), True):
+                    halts += 1
+                    break
+        print(f"\nguardrail A/A, 40 looks, 400 runs: {halts / 400:.1%} false halts")
+        self.assertLessEqual(halts / 400, 0.05)
 
     def test_real_effect_is_called(self):
         v = confidence_sequence(VariantStats(20000, 840, 840), VariantStats(20000, 1000, 1000))

@@ -86,7 +86,7 @@ async function load(){
   $('liftchart').innerHTML=liftChart(d.history);
   $('arms').innerHTML='<tr><th>variant<th>users<th>rate<th>lift<th>fixed 95%<th>always-valid<th>best<th></tr>'+d.arms.map(a=>`<tr><td>${a.variant}<td>${a.n.toLocaleString()}<td>${pct(a.mean,2)}<td>${sg(a.lift)}<td>${a.naive_low==null?'–':sg(a.naive_low,0)+' / '+sg(a.naive_high,0)}<td>${a.low==null?'–':sg(a.low,0)+' / '+sg(a.high,0)}<td>${pct(a.chance_best,0)}<td>${pill(a.verdict)}</tr>`).join('');
   segView(d);
-  $('guards').innerHTML=d.guardrails.length?d.guardrails.map(g=>`<p>${g.metric}: ${g.breaches.length?'<span class="bad">breached by '+g.breaches.join(', ')+'</span>':'<span class="ok">within bounds</span>'}</p>`).join(''):'<p class="hint">This experiment has one metric. Add more in Flagsmith and they become guardrails that halt reallocation if a variant is credibly worse.</p>';
+  $('guards').innerHTML=d.guardrails.length?d.guardrails.map(g=>`<p>${g.metric} (${Object.entries(g.rates).map(([v,r])=>v+' '+(r*100).toFixed(2)+'%').join(', ')}): ${g.breaches.length?'<span class="bad">breached by '+g.breaches.join(', ')+'</span>':'<span class="ok">within bounds</span>'}</p>`).join(''):'<p class="hint">This experiment has one metric. Add more in Flagsmith and they become guardrails that halt reallocation if a variant is credibly worse.</p>';
   $('log').innerHTML='<tr><th>time<th>served<th>decision</tr>'+d.history.slice(-7).reverse().map(p=>`<tr><td>${p.at.slice(11,16)}<td>${Object.entries(p.served).map(([k,v])=>k+' '+Math.round(v*100)+'%').join(' / ')}<td>${p.decision}</tr>`).join('');
 }
 $('trait').onchange=load;load();setInterval(load,10000);

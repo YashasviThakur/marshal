@@ -52,7 +52,8 @@ def snapshot(args, trait):
     return {"experiment": exp["name"], "status": exp["status"], "metric": steer.event, "served": served,
             "arms": [{**row(v, a, arms.get(CONTROL)), "chance_best": wins.get(v)}
                      for v, a in sorted(arms.items(), key=lambda x: (x[0] != CONTROL, x[0]))],
-            "guardrails": [{"metric": g.event, "breaches": guardrail_breaches([g], stats)} for g in metrics[1:]],
+            "guardrails": [{"metric": g.event, "breaches": guardrail_breaches([g], stats),
+                            "rates": {v: a.mean for v, a in stats[g.id].items()}} for g in metrics[1:]],
             "extra_conversions": extra, "identities": total, "trait": trait,
             "segments": [{"segment": seg or "(none)", **row(v, a, g.get(CONTROL), 0.05 / len(seg_stats))}
                          for seg, g in sorted(seg_stats.items()) for v, a in sorted(g.items()) if v != CONTROL],

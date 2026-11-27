@@ -16,7 +16,7 @@ h1{font-size:24px;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-siz
 .s{color:var(--mute);font-size:13px}.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
 h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:0 0 4px}.hint{color:var(--mute);font-size:13px;margin:0 0 12px}
 table{width:100%;border-collapse:collapse}th,td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500;font-size:12px}tr:last-child td{border-bottom:0}.scroll{overflow-x:auto}
+th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500;font-size:12px}tr:last-child td{border-bottom:0}.scroll{overflow-x:auto}#log th,#log td{text-align:left;white-space:normal}
 .pill{font-size:12px;font-weight:650;padding:2px 9px;border-radius:99px}.winner{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
 .loser{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}.undecided{background:var(--soft);color:var(--mute)}
 .bar{display:flex;height:40px;border-radius:10px;overflow:hidden;margin:8px 0 14px}
@@ -79,7 +79,7 @@ async function load(){
    ['Chance '+(best.variant||'–')+' is best',pct(best.chance_best,0),'posterior probability, Thompson sampling'],
    ['Traffic on '+(best.variant||'–'),pct(d.served[best.variant],0),'floor and holdback cap how far it goes'],
    ['Lift on '+d.metric,sg(t.lift),t.low==null?'':'always-valid '+sg(t.low)+' to '+sg(t.high)],
-   ['Extra conversions',(d.extra_conversions>=0?'+':'')+Math.round(d.extra_conversions).toLocaleString(),'vs a fixed even split at today\'s rates (estimate)']
+   ['Extra conversions',(Math.round(d.extra_conversions)>0?'+':'')+(Math.round(d.extra_conversions)||0).toLocaleString(),'vs a fixed even split at today\'s rates (estimate)']
   ].map(k=>`<div class="card"><div class="k">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${k[2]}</div></div>`).join('');
   $('bar').innerHTML=keys.map(k=>`<div style="width:${d.served[k]*100}%;background:${col(k)}">${d.served[k]>.1?k+' '+Math.round(d.served[k]*100)+'%':''}</div>`).join('');
   $('share').innerHTML=shareChart(d.history,keys);$('legend').innerHTML=keys.map(k=>`<span style="color:${col(k)}">● ${k}</span>`).join('')+'<span>share of traffic at each decision</span>';

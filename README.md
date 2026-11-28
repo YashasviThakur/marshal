@@ -8,6 +8,8 @@ Flagsmith's own `PATCH .../experiments/{id}/rollout/` endpoint. Nothing in Flags
 
 Built for Toggle Wars, Track 03.
 
+**[Live replay of the dashboard](https://yashasvithakur.github.io/marshal/)**: a recorded 20,000-identity run, nothing to install. Demo script: [DEMO.md](DEMO.md). Method and assumptions: [docs/METHOD.md](docs/METHOD.md).
+
 ## For judges (Track 03: Build on Open Source Flagsmith)
 
 **One sentence:** Marshal makes a self-hosted Flagsmith experiment steer itself: it measures the experiment from the warehouse, decides with statistics that stay valid however often you look, and moves traffic toward the better variant through Flagsmith's own rollout API.

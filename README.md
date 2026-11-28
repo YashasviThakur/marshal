@@ -1,3 +1,5 @@
+![Marshal: self-hosted Flagsmith experiments that steer themselves](docs/banner.png)
+
 # Marshal
 
 Adaptive traffic allocation for **self-hosted Flagsmith Experimentation**. Marshal watches a running experiment,

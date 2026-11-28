@@ -61,6 +61,20 @@ def snapshot(args, trait):
                          "identities": r.get("identities")} for r in history[-60:]]}
 
 
+def record(args):
+    """Save what the dashboard shows now (every trait given) so `serve --replay FILE` can show it with no Flagsmith."""
+    out = {"recorded_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "states": {t: snapshot(args, t) for t in args.traits}}
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(out, default=str, indent=1))
+    print(f"recorded {len(args.traits)} trait views -> {args.out}")
+
+
+def replayed(file, trait):
+    rec = json.loads(Path(file).read_text())
+    state = rec["states"].get(trait) or next(iter(rec["states"].values()))
+    return {**state, "replay": True, "recorded_at": rec["recorded_at"]}
+
+
 def serve(args):
     page = Path(__file__).with_name("dashboard.html").read_bytes()
 
@@ -70,7 +84,8 @@ def serve(args):
             if url.path == "/api/state":
                 try:
                     trait = parse_qs(url.query).get("trait", [args.trait])[0]
-                    body, code = json.dumps(snapshot(args, trait), default=str).encode(), 200
+                    state = replayed(args.replay, trait) if args.replay else snapshot(args, trait)
+                    body, code = json.dumps(state, default=str).encode(), 200
                 except Exception as e:  # show the problem on the page instead of a blank screen
                     body, code = json.dumps({"error": str(e)}).encode(), 500
                 kind = "application/json"
@@ -84,5 +99,5 @@ def serve(args):
         def log_message(self, *a):
             pass
 
-    print(f"Marshal dashboard on http://localhost:{args.port}")
-    ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+    print(f"Marshal dashboard on http://localhost:{args.port}" + (" (recorded replay)" if args.replay else ""))
+    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()

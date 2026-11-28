@@ -242,6 +242,12 @@ def main():
     sv.add_argument("--env", default="sandbox/.env")
     sv.add_argument("--port", type=int, default=8765)
     sv.add_argument("--trait", default="device", help="trait the segment table starts on")
+    sv.add_argument("--host", default="127.0.0.1", help="0.0.0.0 inside a container")
+    sv.add_argument("--replay", help="serve a file saved by `snapshot` instead of reading Flagsmith (no setup needed)")
+    sp = sub.add_parser("snapshot", help="save the dashboard's current state to a file for `serve --replay`")
+    sp.add_argument("--env", default="sandbox/.env")
+    sp.add_argument("--out", default="docs/replay.json")
+    sp.add_argument("--traits", nargs="+", default=["device"])
     rn = sub.add_parser("run", help="measure, decide and (in act mode) move traffic toward the better variant")
     rn.add_argument("--env", default="sandbox/.env")
     rn.add_argument("--mode", choices=["observe", "act"], default="observe")
@@ -250,10 +256,23 @@ def main():
     rn.add_argument("--holdback", type=float, default=0.20, help="share of traffic kept evenly split")
     rn.add_argument("--max-step", type=float, default=0.10, help="largest share change per cycle")
     rn.add_argument("--seed", type=int)
+    bn = sub.add_parser("bench", help="simulated experiments: Marshal vs a fixed 50/50 split (no Flagsmith needed)")
+    bn.add_argument("--runs", type=int, default=300)
+    bn.add_argument("--rounds", type=int, default=8)
+    bn.add_argument("--per-round", type=int, default=2500)
+    bn.add_argument("--base", type=float, default=0.042, help="control conversion rate")
+    bn.add_argument("--lift", type=float, nargs="+", default=[0.20, 0.50], help="true relative lifts to simulate")
+    bn.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
+    if args.cmd == "bench":
+        from .bench import bench
+        return bench(args)
     if args.cmd == "serve":
         from .dashboard import serve
         return serve(args)
+    if args.cmd == "snapshot":
+        from .dashboard import record
+        return record(args)
     {"status": status, "run": run, "segments": segments}[args.cmd](args)
 
 

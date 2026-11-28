@@ -1,0 +1,21 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env: {POSTGRES_PASSWORD: password, POSTGRES_DB: flagsmith}
+        ports: ['5442:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover tests -v
+        env:
+          MARSHAL_TEST_DSN: postgresql://postgres:password@localhost:5442/flagsmith
+      - run: python -m marshal_ab bench --runs 100

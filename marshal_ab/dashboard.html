@@ -74,7 +74,7 @@ async function load(){
   let d;try{d=await (await fetch('/api/state?trait='+encodeURIComponent($('trait').value))).json()}catch(e){$('err').textContent='cannot reach Marshal';return}
   if(d.error){$('err').textContent=d.error;return}$('err').textContent='';
   const keys=Object.keys(d.served),best=[...d.arms].sort((a,b)=>(b.chance_best||0)-(a.chance_best||0))[0]||{},t=d.arms.find(a=>a.lift!=null)||{};
-  $('title').textContent=d.experiment;$('sub').textContent=`steering metric: ${d.metric} · ${d.identities.toLocaleString()} users · updated ${new Date().toLocaleTimeString()}`;$('chip').textContent=d.status;
+  $('title').textContent=d.experiment;$('sub').textContent=`steering metric: ${d.metric} · ${d.identities.toLocaleString()} users · updated ${new Date().toLocaleTimeString()}`;$('chip').textContent=d.replay?'recorded replay, not live':d.status;if(d.replay)$('sub').textContent=`steering metric: ${d.metric} · ${d.identities.toLocaleString()} users · recorded ${d.recorded_at}`;
   $('kpis').innerHTML=[
    ['Chance '+(best.variant||'–')+' is best',pct(best.chance_best,0),'posterior probability, Thompson sampling'],
    ['Traffic on '+(best.variant||'–'),pct(d.served[best.variant],0),'floor and holdback cap how far it goes'],

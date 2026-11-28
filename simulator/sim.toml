@@ -5,7 +5,7 @@
 # Flagsmith-database warehouse, or your ingestion service's base URL otherwise.
 api_url = "http://localhost:8100/api/v1/"
 events_url = "http://localhost:8100/api/"
-environment_key = "ThpdivYvjWLFVLCZSXWL2W"
+environment_key = "i2jikqtQ5bkDnR8DHdjqHo"
 feature = "checkout_button"
 conversion_event = "purchase"
 

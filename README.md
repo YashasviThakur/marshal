@@ -6,6 +6,48 @@ Flagsmith's own `PATCH .../experiments/{id}/rollout/` endpoint. Nothing in Flags
 
 Built for Toggle Wars, Track 03.
 
+## For judges (Track 03: Build on Open Source Flagsmith)
+
+**One sentence:** Marshal makes a self-hosted Flagsmith experiment steer itself: it measures the experiment from the warehouse, decides with statistics that stay valid however often you look, and moves traffic toward the better variant through Flagsmith's own rollout API.
+
+**Two minutes, nothing to install** (Python 3.12):
+
+```
+python -m marshal_ab serve --replay docs/replay.json    # the dashboard on a recorded real run, http://localhost:8765
+python -m marshal_ab bench                               # 500 simulated experiments per row: Marshal vs a fixed 50/50 split
+```
+
+**The track's four bullets**
+
+| Bullet | Where it shows |
+|---|---|
+| Self-hosted Flagsmith | Built and run on self-hosted 2.295.2 with `EXPERIMENTATION_ENABLED`, using the "Flagsmith database" warehouse, so no ClickHouse or Kafka. `sandbox/compose.yml` brings it up. |
+| Integrations and plugins | Reads the Admin API and the events table; writes only `PATCH .../experiments/{id}/rollout/`. Nothing in Flagsmith is forked. Read-only dashboard, plus a container (`compose.marshal.yml`) that sits beside your own Flagsmith. |
+| Developer tools | `status`, `run`, `segments`, `serve`, `snapshot`, `bench` in one stdlib CLI (psycopg only for the warehouse). `observe` is the default mode, so nothing moves by accident. CI runs the tests against a real Postgres. |
+| Easy for others to reuse | `Dockerfile`, `requirements.txt`, environment-variable settings, MIT licence, a replay file that needs no setup, and a benchmark that needs no Flagsmith. |
+
+**The scorecard**
+
+| Criterion | Evidence |
+|---|---|
+| Use of Flagsmith | Flagsmith is the whole substrate: its events, its experiment and metric objects, its results (matched to **all 10 numbers** of its scorecard, largest difference 0.0), and its rollout endpoint as the actuator. |
+| Impact | A fixed split wastes users on the worse arm and makes you wait. Marshal earned about 87 more conversions in a 20,000-identity run, and the benchmark shows +3% to +9% conversions with no false winners (0 of 500 A/A runs). |
+| Creativity | No other entry I found does adaptive allocation, always-valid inference or per-segment analysis on Flagsmith. Flagsmith's own blog credits competitors with exactly these. |
+| Demo video | See DEMO.md for the 3-minute script. |
+
+**Check it yourself**
+
+| Claim | Command |
+|---|---|
+| Matches Flagsmith's scorecard to the decimal | `python -m marshal_ab status` (after `sh sandbox/demo.sh`) |
+| Always-valid check: 3% vs 33% false winners | `python -m unittest tests.test_decide -v` |
+| More conversions, no invented winners | `python -m marshal_ab bench` |
+| It really moves a running experiment | `python sandbox/day0_check.py` |
+
+**Upstream:** while building this I found that Flagsmith's docs say a running experiment's variations are locked, yet its rollout endpoint changes the split while running. I filed [Flagsmith/flagsmith#9164](https://github.com/Flagsmith/flagsmith/issues/9164), and the sample-ratio gap I hit is already tracked as #9128.
+
+**Limits, stated first:** Marshal gives up some statistical power to serve users better (at +20% in 20,000 identities it calls a winner in 12% of runs, a fixed split in 28%); one metric steers and the others are guardrails; shares are whole percentages. See "Honest limits" below.
+
 ## Why this gap
 
 Flagsmith's comparison post credits competitors with "automated rollout features for gradually shifting traffic toward

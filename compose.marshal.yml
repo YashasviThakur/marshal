@@ -1,15 +1,29 @@
-# Run Marshal's dashboard next to a self-hosted Flagsmith:
-#   docker compose -f docker-compose.yml -f compose.marshal.yml up -d marshal
-# Point it at your Flagsmith's service names (here: flagsmith, flagsmith-db) and an experiment.
-# Dashboard is read-only. To let Marshal move traffic, run `python -m marshal_ab run --mode act --every 15` (see README).
+# Run Marshal next to a self-hosted Flagsmith:
+#   docker compose -f docker-compose.yml -f compose.marshal.yml up -d marshal marshal-run
+# `marshal` is the read-only dashboard (:8765). `marshal-run` is the loop that measures, decides and, only when
+# MARSHAL_MODE=act, moves traffic every 15 minutes. It starts in observe mode: it logs what it would do and moves nothing.
+# Point both at your Flagsmith's service names (here: flagsmith, flagsmith-db) and an experiment.
+# Set MARSHAL_NOTIFY_URL (a Slack, Discord or Mattermost webhook) to be told when a variant is called or traffic is held.
+x-marshal: &marshal
+  build: .
+  environment:
+    FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
+    FLAGSMITH_API_KEY: ${FLAGSMITH_API_KEY:?an organisation admin API key}
+    EXPERIMENT_ENV_KEY: ${EXPERIMENT_ENV_KEY:?the environment key the experiment runs in}
+    EXPERIMENT_ID: ${EXPERIMENT_ID:?the experiment id}
+    MARSHAL_WAREHOUSE_DSN: postgresql://postgres:password@flagsmith-db:5432/flagsmith
+    MARSHAL_NOTIFY_URL: ${MARSHAL_NOTIFY_URL:-}
+  volumes: [marshal-log:/app/.marshal]
+  depends_on: [flagsmith]
+
 services:
   marshal:
-    build: .
+    <<: *marshal
     ports: ['8765:8765']
-    environment:
-      FLAGSMITH_API_URL: http://flagsmith:8000/api/v1/
-      FLAGSMITH_API_KEY: ${FLAGSMITH_API_KEY:?an organisation admin API key}
-      EXPERIMENT_ENV_KEY: ${EXPERIMENT_ENV_KEY:?the environment key the experiment runs in}
-      EXPERIMENT_ID: ${EXPERIMENT_ID:?the experiment id}
-      MARSHAL_WAREHOUSE_DSN: postgresql://postgres:password@flagsmith-db:5432/flagsmith
-    depends_on: [flagsmith]
+  marshal-run:
+    <<: *marshal
+    command: ["python", "-m", "marshal_ab", "run", "--mode", "${MARSHAL_MODE:-observe}", "--every", "15"]
+    restart: unless-stopped
+
+volumes:
+  marshal-log:

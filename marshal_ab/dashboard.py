@@ -66,7 +66,9 @@ def record(args):
     out = {"recorded_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "states": {t: snapshot(args, t) for t in args.traits}}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(out, default=str, indent=1))
-    print(f"recorded {len(args.traits)} trait views -> {args.out}")
+    # The same page next to the recording works on any static host (GitHub Pages: serve /docs): it falls back to replay.json.
+    Path(args.out).with_name("index.html").write_bytes(Path(__file__).with_name("dashboard.html").read_bytes())
+    print(f"recorded {len(args.traits)} trait views -> {args.out} (+ index.html for static hosting)")
 
 
 def replayed(file, trait):

@@ -9,7 +9,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from .stats import VariantStats, lift_se
+from .stats import VariantStats
 
 DEFAULT_TAU = 0.2  # prior spread of the relative lift: effects of +-20% are plausible, +-200% are not
 
@@ -27,14 +27,20 @@ class Verdict:
 
 def confidence_sequence(control: VariantStats, treatment: VariantStats, alpha: float = 0.05,
                         tau: float = DEFAULT_TAU) -> Verdict | None:
-    """Interval for the relative lift that holds at every sample size at once, with error rate alpha."""
-    r = lift_se(control, treatment)
-    if r is None or r[1] == 0:
+    """Interval for the relative lift that holds at every sample size at once, with error rate alpha.
+
+    Built on the log of the rate ratio. On the lift scale itself the delta-method error grows with the ratio, so a
+    treatment with no effect was called a loser in 4.8% of 400 A/A runs (40 looks) and a winner in none, and real
+    winners needed more evidence than real losers. The point estimate is unchanged: Flagsmith's lift is ratio - 1."""
+    if control.n < 2 or treatment.n < 2 or control.mean <= 0 or treatment.mean <= 0:
         return None
-    lift, se = r
-    v, t2 = se * se, tau * tau
+    v = treatment.variance / (treatment.n * treatment.mean ** 2) + control.variance / (control.n * control.mean ** 2)
+    if v == 0:
+        return None
+    t2 = tau * tau
     radius = math.sqrt(v * (v + t2) / t2 * (2 * math.log(1 / alpha) + math.log((v + t2) / v)))
-    return Verdict(lift, lift - radius, lift + radius)
+    log_ratio = math.log(treatment.mean / control.mean)
+    return Verdict(treatment.mean / control.mean - 1, math.exp(log_ratio - radius) - 1, math.exp(log_ratio + radius) - 1)
 
 
 def win_probabilities(arms: dict[str, VariantStats], *, occurrence: bool, lower_is_better: bool = False,

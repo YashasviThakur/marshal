@@ -33,6 +33,16 @@ class Admin:
     def patch(self, path, body):
         return self.call("PATCH", path, body)
 
+    def mark_health(self, env_key, feature, healthy, text):
+        """Show Marshal's state on the feature inside Flagsmith (Feature Health: Unhealthy with a reason, or Healthy
+        again), through a "Webhook" health provider that is created in the project on first use."""
+        env = self.get(f"/environments/{env_key}/")
+        path = f"/projects/{env['project']}/feature-health/providers/"
+        provider = next((p for p in self.get(path) if p["name"] == "Webhook"), None) or self.post(path, {"name": "Webhook"})
+        self.post(provider["webhook_url"].split("/api/v1", 1)[1],
+                  {"environment": env["name"], "feature": feature, "status": "healthy" if healthy else "unhealthy",
+                   "reason": {"text_blocks": [{"title": "Marshal", "text": text}], "url_blocks": []}})
+
     # experiments
     def experiment(self, env_key, exp_id):
         return self.get(f"/environments/{env_key}/experiments/{exp_id}/")

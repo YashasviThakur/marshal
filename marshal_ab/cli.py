@@ -48,6 +48,26 @@ def configured_split(exp) -> dict[str, float]:
     return {CONTROL: 1 - sum(shares.values()), **shares}
 
 
+def sample_ratio(s, exp, table, start):
+    """Chi-squared p-value of the identities first seen since the last reallocation against the split now served
+    (cumulative counts stop matching a split that has moved). -> (split, since-when text, p or None)"""
+    import psycopg
+
+    split, since, when = configured_split(exp), start, "the experiment started"
+    log = Path(".marshal/decisions.jsonl")
+    moves = [json.loads(l) for l in log.read_text().splitlines() if "reallocated" in l] if log.exists() else []
+    moves = [m for m in moves if m["decision"] == "reallocated"]
+    if moves:  # only identities first seen under the split now being served say anything about that split
+        last = moves[-1]
+        since = datetime.fromisoformat(last.get("applied_at") or last["at"]).astimezone(start.tzinfo)
+        when = f"the last reallocation ({since:%H:%M:%S} UTC)"
+    with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
+        fresh = counts_since(conn, s["EXPERIMENT_ENV_KEY"], exp["feature"]["name"], since, datetime.now(start.tzinfo), table)
+    total = sum(fresh.values())
+    return split, when, (srm_p_value([fresh.get(v, 0) for v in split], list(split.values()))
+                         if total >= SRM_MIN_TOTAL_IDENTITIES else None)
+
+
 def status(args):
     import psycopg
 
@@ -92,19 +112,7 @@ def status(args):
                          if inf else "   collecting data (below Flagsmith's floors)")
             print(line)
 
-    split = configured_split(exp)
-    since, when = start, "the experiment started"
-    log = Path(".marshal/decisions.jsonl")
-    moves = [json.loads(l) for l in log.read_text().splitlines() if "reallocated" in l] if log.exists() else []
-    moves = [m for m in moves if m["decision"] == "reallocated"]
-    if moves:  # only identities first seen under the split now being served say anything about that split
-        last = moves[-1]
-        since = datetime.fromisoformat(last.get("applied_at") or last["at"]).astimezone(start.tzinfo)
-        when = f"the last reallocation ({since:%H:%M:%S} UTC)"
-    with psycopg.connect(s["MARSHAL_WAREHOUSE_DSN"]) as conn:
-        fresh = counts_since(conn, env_key, exp["feature"]["name"], since, datetime.now(start.tzinfo), table)
-    total = sum(fresh.values())
-    srm = srm_p_value([fresh.get(v, 0) for v in split], list(split.values())) if total >= SRM_MIN_TOTAL_IDENTITIES else None
+    split, when, srm = sample_ratio(s, exp, table, start)
     print(f"\nsample ratio vs the split being served ({', '.join(f'{k} {v:.0%}' for k, v in split.items())}), "
           f"identities first seen since {when}: "
           + ("too little traffic" if srm is None else f"p = {srm:.3f}" + ("  MISMATCH" if srm < 0.001 else "  ok")))
@@ -169,6 +177,31 @@ def segments(args):
                   + (f" {v.lift:>+8.1%} {f'[{v.low:+.1%}, {v.high:+.1%}]':>24}  {v.state}" if v else "   not enough data"))
 
 
+def alert(record, prev):
+    """(key, text) when this cycle has something worth telling a person, else None. Flagsmith sends nothing when a
+    result becomes real, a guardrail trips, assignment breaks or events stop: the key lets Marshal say each once."""
+    if record["decision"].startswith("hold:"):
+        return record["decision"].split(" (")[0], record["decision"]
+    called = {v: x for v, x in (record.get("verdicts") or {}).items() if x[0] != "undecided"}
+    if called:
+        v, (state, lift, low, high) = next(iter(sorted(called.items())))
+        return f"{v} is a {state}", f"{v} is a {state}: lift {lift:+.1%}, always-valid interval [{low:+.1%}, {high:+.1%}]"
+    if prev and prev.get("identities") and prev["identities"] == record["identities"]:
+        return "stalled", "no new identities since the last cycle: is exposure tracking still on?"
+
+
+def notify(url, text):
+    """POST the message as JSON ({"text"} for Slack and Mattermost, {"content"} for Discord). Never stops the loop."""
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(url, json.dumps({"text": text, "content": text}).encode(),
+                                     {"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10).close()
+    except Exception as e:
+        print(f"notify failed: {e}", file=sys.stderr)
+
+
 def run(args):
     """One measure -> decide -> act cycle (looped with --every). Observe mode only reports what it would do."""
     import psycopg
@@ -204,7 +237,10 @@ def run(args):
             record.update(chance_best=wins, verdicts={v: (x.state, round(x.lift, 4), round(x.low, 4), round(x.high, 4))
                                                       for v, x in verdicts.items() if x})
             breaches = guardrail_breaches(metrics[1:], stats)
-            if breaches:  # a guardrail metric is credibly worse for a variant: stop moving traffic toward it
+            _, when, srm = sample_ratio(s, exp, table, start)
+            if srm is not None and srm < 0.001:  # users are not arriving in the split being served: the data is suspect
+                record["decision"] = f"hold: sample ratio mismatch (p = {srm:.4f}, identities first seen since {when})"
+            elif breaches:  # a guardrail metric is credibly worse for a variant: stop moving traffic toward it
                 record["decision"] = "hold: guardrail breached by " + ", ".join(breaches)
             else:
                 proposed = allocate(wins, current, floor=args.floor, holdback=args.holdback, max_step=args.max_step)
@@ -219,10 +255,24 @@ def run(args):
                     api.patch(f"/environments/{env_key}/experiments/{exp_id}/rollout/", body)
                     record["applied_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
                     record["decision"] = "reallocated"
+        log = Path(".marshal/decisions.jsonl")
+        lines = log.read_text().splitlines() if log.exists() else []
+        prev = json.loads(lines[-1]) if lines else {}
+        message = alert(record, prev)
+        record["alert"] = message and message[0]
         print(json.dumps(record))
         Path(".marshal").mkdir(exist_ok=True)
-        with open(".marshal/decisions.jsonl", "a") as f:
+        with open(log, "a") as f:
             f.write(json.dumps(record) + chr(10))
+        if message and message[0] != prev.get("alert") and (args.notify or s.get("MARSHAL_NOTIFY_URL")):
+            notify(args.notify or s["MARSHAL_NOTIFY_URL"], f"Marshal, experiment \"{exp['name']}\": {message[1]}")
+        held, was_held = record["decision"].startswith("hold:"), prev.get("decision", "").startswith("hold:")
+        if args.health and ((held and record["alert"] != prev.get("alert")) or (was_held and not held)):
+            try:  # Unhealthy in Flagsmith while traffic is held (with the reason), Healthy again afterwards
+                api.mark_health(env_key, exp["feature"]["name"], not held,
+                                record["decision"] if held else "Marshal is steering traffic again")
+            except Exception as e:
+                print(f"feature health failed: {e}", file=sys.stderr)
         if not args.every:
             return
         time.sleep(args.every * 60)
@@ -256,12 +306,16 @@ def main():
     rn.add_argument("--holdback", type=float, default=0.20, help="share of traffic kept evenly split")
     rn.add_argument("--max-step", type=float, default=0.10, help="largest share change per cycle")
     rn.add_argument("--seed", type=int)
+    rn.add_argument("--health", action="store_true", help="show a hold on the feature inside Flagsmith: Unhealthy with the "
+                    "reason (Feature Health, via a Webhook provider created in the project), Healthy again afterwards")
+    rn.add_argument("--notify", help="URL to POST a message to (Slack, Discord, Mattermost) when a variant is called, "
+                    "traffic is held, assignment breaks or events stop; or set MARSHAL_NOTIFY_URL")
     bn = sub.add_parser("bench", help="simulated experiments: Marshal vs a fixed 50/50 split (no Flagsmith needed)")
     bn.add_argument("--runs", type=int, default=300)
     bn.add_argument("--rounds", type=int, default=8)
     bn.add_argument("--per-round", type=int, default=2500)
     bn.add_argument("--base", type=float, default=0.042, help="control conversion rate")
-    bn.add_argument("--lift", type=float, nargs="+", default=[0.20, 0.50], help="true relative lifts to simulate")
+    bn.add_argument("--lift", type=float, nargs="+", default=[0.20, 0.50, -0.20], help="true relative lifts to simulate")
     bn.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
     if args.cmd == "bench":

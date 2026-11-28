@@ -1,5 +1,5 @@
 {
- "recorded_at": "2026-11-28 16:43",
+ "recorded_at": "2026-11-28 20:27",
  "states": {
   "device": {
    "experiment": "Checkout button copy",
@@ -12,8 +12,8 @@
    "arms": [
     {
      "variant": "control",
-     "n": 5201,
-     "mean": 0.037877331282445685,
+     "n": 5324,
+     "mean": 0.03888054094665665,
      "lift": null,
      "low": null,
      "high": null,
@@ -24,62 +24,62 @@
     },
     {
      "variant": "treatment",
-     "n": 14799,
-     "mean": 0.05601729846611257,
-     "lift": 0.4789135498591445,
-     "low": 0.11923078730513442,
-     "high": 0.8385963124131546,
+     "n": 14676,
+     "mean": 0.05675933496865631,
+     "lift": 0.45983912740640687,
+     "low": 0.1589085415415643,
+     "high": 0.838911528835484,
      "verdict": "winner",
-     "naive_low": 0.25394670848310796,
-     "naive_high": 0.7038803912351811,
+     "naive_low": 0.24237832747140117,
+     "naive_high": 0.6772999273414124,
      "chance_best": 1.0
     }
    ],
    "guardrails": [],
-   "extra_conversions": 87.05370251441752,
+   "extra_conversions": 83.6012408468705,
    "identities": 20000,
    "trait": "device",
    "segments": [
     {
      "segment": "android",
      "variant": "treatment",
-     "n": 5153,
-     "mean": 0.023093343683291287,
-     "lift": -0.3519201328244604,
-     "low": -0.6995637316635154,
-     "high": -0.004276533985405395,
-     "verdict": "loser",
-     "naive_low": -0.5467517958100601,
-     "naive_high": -0.1570884698388607
+     "n": 5091,
+     "mean": 0.023178157532901197,
+     "lift": -0.3852749523882727,
+     "low": -0.6505048620031901,
+     "high": 0.08123645532570967,
+     "verdict": "undecided",
+     "naive_low": -0.5649281498022135,
+     "naive_high": -0.20562175497433174
     },
     {
      "segment": "desktop",
      "variant": "treatment",
-     "n": 7422,
-     "mean": 0.0789544597143627,
-     "lift": 0.9882858653068838,
-     "low": 0.10391775779597301,
-     "high": 1.8726539728177944,
+     "n": 7336,
+     "mean": 0.07878953107960741,
+     "lift": 0.869523522546825,
+     "low": 0.3174915666130891,
+     "high": 1.6528581206336548,
      "verdict": "winner",
-     "naive_low": 0.5831313856849235,
-     "naive_high": 1.3934403449288442
+     "naive_low": 0.5031153998663237,
+     "naive_high": 1.2359316452273261
     },
     {
      "segment": "ios",
      "variant": "treatment",
-     "n": 2224,
-     "mean": 0.05575539568345324,
-     "lift": 0.5128297362110312,
-     "low": -1.0837759137448764,
-     "high": 2.109435386166939,
+     "n": 2249,
+     "mean": 0.0609159626500667,
+     "lift": 1.0026122721209427,
+     "low": -0.22808156923640277,
+     "high": 4.195440026586982,
      "verdict": "undecided",
-     "naive_low": -0.07842639185917855,
-     "naive_high": 1.104085864281241
+     "naive_low": 0.14889688966774473,
+     "naive_high": 1.8563276545741407
     }
    ],
    "history": [
     {
-     "at": "2026-11-28T16:20:42",
+     "at": "2026-11-28T20:08:27",
      "served": {
       "control": 0.5,
       "treatment": 0.5
@@ -88,18 +88,18 @@
      "verdicts": {
       "treatment": [
        "undecided",
-       0.9132,
-       -1.011,
-       2.8375
+       0.3857,
+       -0.2621,
+       1.6023
       ]
      },
      "identities": {
-      "control": 1271,
-      "treatment": 1229
+      "control": 1226,
+      "treatment": 1274
      }
     },
     {
-     "at": "2026-11-28T16:23:41",
+     "at": "2026-11-28T20:11:02",
      "served": {
       "control": 0.4,
       "treatment": 0.6
@@ -108,9 +108,9 @@
      "verdicts": {
       "treatment": [
        "undecided",
-       0.5691,
-       -0.2707,
-       1.4089
+       0.4303,
+       -0.0692,
+       1.198
       ]
      },
      "identities": {
@@ -119,7 +119,7 @@
      }
     },
     {
-     "at": "2026-11-28T16:27:11",
+     "at": "2026-11-28T20:13:48",
      "served": {
       "control": 0.30000000000000004,
       "treatment": 0.7
@@ -127,19 +127,19 @@
      "decision": "reallocated",
      "verdicts": {
       "treatment": [
-       "undecided",
-       0.5174,
-       -0.1036,
-       1.1385
+       "winner",
+       0.5136,
+       0.059,
+       1.1633
       ]
      },
      "identities": {
-      "control": 2958,
-      "treatment": 4542
+      "control": 2990,
+      "treatment": 4510
      }
     },
     {
-     "at": "2026-11-28T16:31:10",
+     "at": "2026-11-28T20:16:30",
      "served": {
       "control": 0.19999999999999996,
       "treatment": 0.8
@@ -147,19 +147,19 @@
      "decision": "reallocated",
      "verdicts": {
       "treatment": [
-       "undecided",
-       0.5201,
-       -0.0187,
-       1.0588
+       "winner",
+       0.479,
+       0.0783,
+       1.0285
       ]
      },
      "identities": {
-      "control": 3441,
-      "treatment": 6559
+      "control": 3489,
+      "treatment": 6511
      }
     },
     {
-     "at": "2026-11-28T16:34:06",
+     "at": "2026-11-28T20:19:18",
      "served": {
       "control": 0.18000000000000005,
       "treatment": 0.82
@@ -168,18 +168,18 @@
      "verdicts": {
       "treatment": [
        "winner",
-       0.5892,
-       0.0794,
-       1.099
+       0.533,
+       0.1489,
+       1.0455
       ]
      },
      "identities": {
-      "control": 3889,
-      "treatment": 8611
+      "control": 3932,
+      "treatment": 8568
      }
     },
     {
-     "at": "2026-11-28T16:37:06",
+     "at": "2026-11-28T20:21:56",
      "served": {
       "control": 0.18000000000000005,
       "treatment": 0.82
@@ -188,18 +188,18 @@
      "verdicts": {
       "treatment": [
        "winner",
-       0.5464,
-       0.1048,
-       0.988
+       0.5431,
+       0.1824,
+       1.0139
       ]
      },
      "identities": {
-      "control": 4369,
-      "treatment": 10631
+      "control": 4399,
+      "treatment": 10601
      }
     },
     {
-     "at": "2026-11-28T16:40:04",
+     "at": "2026-11-28T20:24:33",
      "served": {
       "control": 0.18000000000000005,
       "treatment": 0.82
@@ -208,18 +208,18 @@
      "verdicts": {
       "treatment": [
        "winner",
-       0.4949,
-       0.0997,
-       0.8902
+       0.449,
+       0.1319,
+       0.8549
       ]
      },
      "identities": {
-      "control": 4751,
-      "treatment": 12749
+      "control": 4852,
+      "treatment": 12648
      }
     },
     {
-     "at": "2026-11-28T16:42:59",
+     "at": "2026-11-28T20:27:15",
      "served": {
       "control": 0.18000000000000005,
       "treatment": 0.82
@@ -228,14 +228,14 @@
      "verdicts": {
       "treatment": [
        "winner",
-       0.4789,
-       0.1192,
-       0.8386
+       0.4598,
+       0.1589,
+       0.8389
       ]
      },
      "identities": {
-      "control": 5201,
-      "treatment": 14799
+      "control": 5324,
+      "treatment": 14676
      }
     }
    ]

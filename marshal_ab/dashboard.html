@@ -70,8 +70,13 @@ function segView(d){
   $('segs').innerHTML=d.segments.map(s=>`<div class="seg"><div>${s.segment}<div class="s">${s.n.toLocaleString()} users</div></div>
    <div class="track"><span class="z" style="left:${pos(0)}%"></span><span class="w" style="left:${pos(s.low)}%;width:${pos(s.high)-pos(s.low)}%"></span>
    <span class="d" style="left:${pos(s.lift)}%;background:${s.lift>=0?'var(--good)':'var(--bad)'}"></span></div><div style="text-align:right"><b>${sg(s.lift)}</b></div></div>`).join('')}
+async function state(){
+  const trait=$('trait').value;
+  try{const r=await fetch('/api/state?trait='+encodeURIComponent(trait));if((r.headers.get('content-type')||'').includes('json'))return await r.json()}catch(e){}
+  const rec=await (await fetch('replay.json')).json();  // no Marshal behind this page (static hosting): show the recorded run
+  return{...(rec.states[trait]||Object.values(rec.states)[0]),replay:true,recorded_at:rec.recorded_at}}
 async function load(){
-  let d;try{d=await (await fetch('/api/state?trait='+encodeURIComponent($('trait').value))).json()}catch(e){$('err').textContent='cannot reach Marshal';return}
+  let d;try{d=await state()}catch(e){$('err').textContent='cannot reach Marshal';return}
   if(d.error){$('err').textContent=d.error;return}$('err').textContent='';
   const keys=Object.keys(d.served),best=[...d.arms].sort((a,b)=>(b.chance_best||0)-(a.chance_best||0))[0]||{},t=d.arms.find(a=>a.lift!=null)||{};
   $('title').textContent=d.experiment;$('sub').textContent=`steering metric: ${d.metric} · ${d.identities.toLocaleString()} users · updated ${new Date().toLocaleTimeString()}`;$('chip').textContent=d.replay?'recorded replay, not live':d.status;if(d.replay)$('sub').textContent=`steering metric: ${d.metric} · ${d.identities.toLocaleString()} users · recorded ${d.recorded_at}`;

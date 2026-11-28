@@ -37,6 +37,30 @@ class Decide(unittest.TestCase):
         self.assertLessEqual(seq, 0.05)
         self.assertGreater(fixed, 0.15)
 
+    def test_aa_false_calls_are_symmetric(self):
+        """A rare event, 40 looks, no effect. On the lift scale this called 4.8% of runs a loser and none a winner."""
+        rng, winners, losers = random.Random(5), 0, 0
+        for _ in range(400):
+            n = c = t = 0
+            seen = set()
+            for _ in range(40):
+                n += 500
+                c += sum(rng.random() < 0.042 for _ in range(500))
+                t += sum(rng.random() < 0.042 for _ in range(500))
+                v = confidence_sequence(VariantStats(n, c, c), VariantStats(n, t, t))
+                seen |= {v.state} if v else set()
+            winners += "winner" in seen
+            losers += "loser" in seen
+        print(f"\nA/A, 4.2% base rate, 40 looks, 400 runs: {winners / 4:.1f}% winners, {losers / 4:.1f}% losers")
+        self.assertLessEqual((winners + losers) / 400, 0.05)
+        self.assertLessEqual(abs(winners - losers) / 400, 0.02)
+
+    def test_loser_and_winner_mirror_each_other(self):
+        up = confidence_sequence(VariantStats(8000, 336, 336), VariantStats(8000, 403, 403))  # +20%
+        down = confidence_sequence(VariantStats(8000, 403, 403), VariantStats(8000, 336, 336))  # the same data, swapped
+        self.assertAlmostEqual(1 + up.low, 1 / (1 + down.high))  # the interval is symmetric on the ratio scale
+        self.assertAlmostEqual(up.lift, 403 / 336 - 1)  # and the point estimate is still Flagsmith's lift
+
     def test_guardrail_false_halts_at_aa(self):
         rng, halts = random.Random(11), 0
         for _ in range(400):
